@@ -1,12 +1,16 @@
-from rate_limiter.limiter import RateLimiter, AsyncRateLimiter, limit_rate, async_limit_rate
-import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
-import time
 import asyncio
+import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from rate_limiter.rps_limiter import (
+    AsyncRateLimiter,
+    RateLimiter,
+    async_limit_rate,
+    limit_rate,
+)
 
 
 class TestRateLimiter(unittest.TestCase):
-
     def setUp(self):
         self.mock_monotonic_time = 0.0
 
@@ -28,15 +32,21 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(limiter_float.allowance, 1.0)
 
     def test_init_invalid_requests_per_second(self):
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             RateLimiter(0)
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             RateLimiter(-5)
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             RateLimiter("invalid")  # type: ignore[arg-type]
 
-    @patch('time.sleep')
-    @patch('time.monotonic')
+    @patch("time.sleep")
+    @patch("time.monotonic")
     def test_acquire_immediate_success(self, mock_monotonic, mock_sleep):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_sleep.side_effect = self._mock_sleep
@@ -51,8 +61,8 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(limiter.allowance, 4.0)  # 5 - 1
         self.assertEqual(limiter.last_check, 100.0)
 
-    @patch('time.sleep')
-    @patch('time.monotonic')
+    @patch("time.sleep")
+    @patch("time.monotonic")
     def test_acquire_burst_capacity(self, mock_monotonic, mock_sleep):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_sleep.side_effect = self._mock_sleep
@@ -65,13 +75,15 @@ class TestRateLimiter(unittest.TestCase):
         for i in range(int(rps)):
             limiter.acquire()
             self.assertEqual(limiter.allowance, float(rps - 1 - i))
-            self.assertEqual(limiter.last_check, 200.0)  # No wait, last_check is current_time
+            self.assertEqual(
+                limiter.last_check, 200.0
+            )  # No wait, last_check is current_time
 
         mock_sleep.assert_not_called()
         self.assertEqual(limiter.allowance, 0.0)
 
-    @patch('time.sleep')
-    @patch('time.monotonic')
+    @patch("time.sleep")
+    @patch("time.monotonic")
     def test_acquire_waits_when_bucket_empty(self, mock_monotonic, mock_sleep):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_sleep.side_effect = self._mock_sleep
@@ -86,19 +98,23 @@ class TestRateLimiter(unittest.TestCase):
         limiter.acquire()
         mock_sleep.assert_not_called()
         self.assertEqual(limiter.allowance, 0.0)
-        self.assertEqual(limiter.last_check, 0.0)  # current_time (0.0) + wait_time (0.0)
+        self.assertEqual(
+            limiter.last_check, 0.0
+        )  # current_time (0.0) + wait_time (0.0)
 
         # Second acquire should wait
         limiter.acquire()
         expected_wait_time = (1.0 - 0.0) / rps  # (1.0 - current_allowance) / rps
         mock_sleep.assert_called_once_with(expected_wait_time)
-        self.assertEqual(limiter.allowance, 0.0)  # Consumed the token that just became available
+        self.assertEqual(
+            limiter.allowance, 0.0
+        )  # Consumed the token that just became available
         # last_check = current_time_at_call_start (0.0) + wait_time (1.0)
         self.assertEqual(limiter.last_check, 1.0)
         self.assertEqual(self._get_mock_monotonic_time(), 1.0)  # Time advanced by sleep
 
-    @patch('time.sleep')
-    @patch('time.monotonic')
+    @patch("time.sleep")
+    @patch("time.monotonic")
     def test_acquire_refills_over_time(self, mock_monotonic, mock_sleep):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_sleep.side_effect = self._mock_sleep
@@ -123,9 +139,11 @@ class TestRateLimiter(unittest.TestCase):
         self.assertEqual(limiter.last_check, 0.5)
         self.assertEqual(self._get_mock_monotonic_time(), 0.25 + 0.25)  # Time advanced
 
-    @patch('time.sleep')
-    @patch('time.monotonic')
-    def test_acquire_respects_bucket_capacity_on_refill(self, mock_monotonic, mock_sleep):
+    @patch("time.sleep")
+    @patch("time.monotonic")
+    def test_acquire_respects_bucket_capacity_on_refill(
+        self, mock_monotonic, mock_sleep
+    ):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_sleep.side_effect = self._mock_sleep
 
@@ -145,11 +163,12 @@ class TestRateLimiter(unittest.TestCase):
         # Capped: min(11.0, 1.0) = 1.0.
         mock_sleep.assert_not_called()
         self.assertEqual(limiter.allowance, 0.0)  # 1.0 - 1.0
-        self.assertEqual(limiter.last_check, 10.0)  # current_time (10.0) + wait_time (0.0)
+        self.assertEqual(
+            limiter.last_check, 10.0
+        )  # current_time (10.0) + wait_time (0.0)
 
 
 class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python 3.8+
-
     def setUp(self):
         self.mock_monotonic_time = 0.0
 
@@ -171,16 +190,24 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
         self.assertEqual(limiter_float.allowance, 1.0)
 
     def test_init_invalid_requests_per_second_async(self):  # Not an async test method
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             AsyncRateLimiter(0)
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             AsyncRateLimiter(-5)
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
             AsyncRateLimiter("invalid")  # type: ignore[arg-type]
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('time.monotonic')
-    async def test_acquire_immediate_success_async(self, mock_monotonic, mock_async_sleep):
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    @patch("time.monotonic")
+    async def test_acquire_immediate_success_async(
+        self, mock_monotonic, mock_async_sleep
+    ):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_async_sleep.side_effect = self._mock_async_sleep
 
@@ -194,8 +221,8 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
         self.assertEqual(limiter.allowance, 4.0)
         self.assertEqual(limiter.last_check, 100.0)
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('time.monotonic')
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    @patch("time.monotonic")
     async def test_acquire_burst_capacity_async(self, mock_monotonic, mock_async_sleep):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_async_sleep.side_effect = self._mock_async_sleep
@@ -213,9 +240,11 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
         mock_async_sleep.assert_not_called()
         self.assertEqual(limiter.allowance, 0.0)
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('time.monotonic')
-    async def test_acquire_waits_when_bucket_empty_async(self, mock_monotonic, mock_async_sleep):
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    @patch("time.monotonic")
+    async def test_acquire_waits_when_bucket_empty_async(
+        self, mock_monotonic, mock_async_sleep
+    ):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_async_sleep.side_effect = self._mock_async_sleep
 
@@ -237,9 +266,11 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
         self.assertEqual(limiter.last_check, 1.0)
         self.assertEqual(self._get_mock_monotonic_time(), 1.0)
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('time.monotonic')
-    async def test_acquire_refills_over_time_async(self, mock_monotonic, mock_async_sleep):
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    @patch("time.monotonic")
+    async def test_acquire_refills_over_time_async(
+        self, mock_monotonic, mock_async_sleep
+    ):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_async_sleep.side_effect = self._mock_async_sleep
 
@@ -258,9 +289,11 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
         self.assertEqual(limiter.last_check, 0.5)  # 0.25 (current) + 0.25 (wait)
         self.assertEqual(self._get_mock_monotonic_time(), 0.25 + 0.25)
 
-    @patch('asyncio.sleep', new_callable=AsyncMock)
-    @patch('time.monotonic')
-    async def test_acquire_respects_bucket_capacity_on_refill_async(self, mock_monotonic, mock_async_sleep):
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    @patch("time.monotonic")
+    async def test_acquire_respects_bucket_capacity_on_refill_async(
+        self, mock_monotonic, mock_async_sleep
+    ):
         mock_monotonic.side_effect = self._get_mock_monotonic_time
         mock_async_sleep.side_effect = self._mock_async_sleep
 
@@ -280,8 +313,7 @@ class TestAsyncRateLimiter(unittest.IsolatedAsyncioTestCase):  # Requires Python
 
 
 class TestLimitRateDecorator(unittest.TestCase):
-
-    @patch('rate_limiter.limiter.RateLimiter')
+    @patch("rate_limiter.rps_limiter.RateLimiter")
     def test_decorator_with_requests_per_second(self, MockRateLimiter):
         mock_limiter_instance = MockRateLimiter.return_value
         rps = 5
@@ -309,28 +341,41 @@ class TestLimitRateDecorator(unittest.TestCase):
         mock_limiter.acquire.assert_called_once()
 
     def test_decorator_invalid_limiter_type(self):
-        with self.assertRaisesRegex(TypeError, "Provided 'limiter' must be an instance of RateLimiter."):
+        with self.assertRaisesRegex(
+            TypeError, "Provided 'limiter' must be an instance of RateLimiter."
+        ):
+
             @limit_rate(limiter="not a limiter object")  # type: ignore[arg-type]
             def limited_function():
                 pass  # pragma: no cover
+
             limited_function()  # Call to execute decorator logic if it didn't raise on definition
 
     def test_decorator_no_arguments(self):
-        with self.assertRaisesRegex(ValueError, "Either a 'limiter' .* or 'requests_per_second' .* must be provided."):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Either a 'limiter' .* or 'requests_per_second' .* must be provided.",
+        ):
+
             @limit_rate()
             def limited_function():
                 pass  # pragma: no cover
+
             limited_function()
 
     def test_decorator_invalid_rps_in_factory(self):
         # This will raise ValueError from RateLimiter constructor
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
+
             @limit_rate(requests_per_second=0)
             def limited_function():
                 pass  # pragma: no cover
+
             limited_function()
 
-    @patch('rate_limiter.limiter.RateLimiter')
+    @patch("rate_limiter.rps_limiter.RateLimiter")
     def test_decorator_preserves_function_metadata(self, MockRateLimiter):
         rps = 1
 
@@ -348,8 +393,7 @@ class TestLimitRateDecorator(unittest.TestCase):
 
 
 class TestAsyncLimitRateDecorator(unittest.IsolatedAsyncioTestCase):
-
-    @patch('rate_limiter.limiter.AsyncRateLimiter')
+    @patch("rate_limiter.rps_limiter.AsyncRateLimiter")
     async def test_decorator_with_requests_per_second_async(self, MockAsyncRateLimiter):
         mock_limiter_instance = MockAsyncRateLimiter.return_value
         # Make acquire an async mock if it needs to be awaited by the wrapper
@@ -380,28 +424,43 @@ class TestAsyncLimitRateDecorator(unittest.IsolatedAsyncioTestCase):
         mock_limiter.acquire.assert_called_once()
 
     async def test_decorator_invalid_limiter_type_async(self):
-        with self.assertRaisesRegex(TypeError, "Provided 'limiter' must be an instance of AsyncRateLimiter."):
+        with self.assertRaisesRegex(
+            TypeError, "Provided 'limiter' must be an instance of AsyncRateLimiter."
+        ):
+
             @async_limit_rate(limiter="not an async limiter object")  # type: ignore[arg-type]
             async def limited_async_function():
                 pass  # pragma: no cover
+
             await limited_async_function()
 
     async def test_decorator_no_arguments_async(self):
-        with self.assertRaisesRegex(ValueError, "Either a 'limiter' .* or 'requests_per_second' .* must be provided."):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Either a 'limiter' .* or 'requests_per_second' .* must be provided.",
+        ):
+
             @async_limit_rate()
             async def limited_async_function():
                 pass  # pragma: no cover
+
             await limited_async_function()
 
     async def test_decorator_invalid_rps_in_factory_async(self):
-        with self.assertRaisesRegex(ValueError, "requests_per_second must be a positive number."):
+        with self.assertRaisesRegex(
+            ValueError, "requests_per_second must be a positive number."
+        ):
+
             @async_limit_rate(requests_per_second=0)
             async def limited_async_function():
                 pass  # pragma: no cover
+
             await limited_async_function()
 
-    @patch('rate_limiter.limiter.AsyncRateLimiter')
-    async def test_decorator_preserves_function_metadata_async(self, MockAsyncRateLimiter):
+    @patch("rate_limiter.rps_limiter.AsyncRateLimiter")
+    async def test_decorator_preserves_function_metadata_async(
+        self, MockAsyncRateLimiter
+    ):
         mock_limiter_instance = MockAsyncRateLimiter.return_value
         mock_limiter_instance.acquire = AsyncMock()
         rps = 1
@@ -454,5 +513,5 @@ class TestAsyncLimitRateDecorator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, "sync_result")
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     unittest.main()

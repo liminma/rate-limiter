@@ -1,8 +1,7 @@
+import asyncio
 import functools
 import time
 from threading import Lock
-import asyncio
-
 
 """
 This module implements rate limiting using the token bucket algorithm.
@@ -31,7 +30,10 @@ class _BaseRateLimiterLogic:
         Raises:
             ValueError: If 'requests_per_second' is not a positive number.
         """
-        if not isinstance(requests_per_second, (int, float)) or requests_per_second <= 0.0:
+        if (
+            not isinstance(requests_per_second, (int, float))
+            or requests_per_second <= 0.0
+        ):
             raise ValueError("requests_per_second must be a positive number.")
 
         self.requests_per_second = float(requests_per_second)
@@ -151,7 +153,11 @@ class AsyncRateLimiter(_BaseRateLimiterLogic):
                 await asyncio.sleep(wait_time)
 
 
-def limit_rate(*, limiter: RateLimiter | None = None, requests_per_second: int | float | None = None):
+def limit_rate(
+    *,
+    limiter: RateLimiter | None = None,
+    requests_per_second: int | float | None = None,
+):
     """
     Decorator factory that creates a rate limiter for the decorated function.
 
@@ -172,7 +178,7 @@ def limit_rate(*, limiter: RateLimiter | None = None, requests_per_second: int |
     """
     if limiter is not None:
         if not isinstance(limiter, RateLimiter):
-            raise TypeError(f"Provided 'limiter' must be an instance of RateLimiter.")
+            raise TypeError("Provided 'limiter' must be an instance of RateLimiter.")
     elif requests_per_second is not None:
         limiter = RateLimiter(requests_per_second)
     else:
@@ -194,7 +200,11 @@ def limit_rate(*, limiter: RateLimiter | None = None, requests_per_second: int |
     return decorator
 
 
-def async_limit_rate(*, limiter: AsyncRateLimiter | None = None, requests_per_second: int | float | None = None):
+def async_limit_rate(
+    *,
+    limiter: AsyncRateLimiter | None = None,
+    requests_per_second: int | float | None = None,
+):
     """
     Decorator factory that creates an asyncio-compatible rate limiter for the decorated async function.
 
@@ -215,7 +225,9 @@ def async_limit_rate(*, limiter: AsyncRateLimiter | None = None, requests_per_se
     """
     if limiter is not None:
         if not isinstance(limiter, AsyncRateLimiter):
-            raise TypeError(f"Provided 'limiter' must be an instance of AsyncRateLimiter.")
+            raise TypeError(
+                "Provided 'limiter' must be an instance of AsyncRateLimiter."
+            )
     elif requests_per_second is not None:
         limiter = AsyncRateLimiter(requests_per_second)
     else:

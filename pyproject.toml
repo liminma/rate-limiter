@@ -7,7 +7,7 @@ name = "rate-limiter"
 version = "0.1.0"
 description = "A Python library for rate limiting using the token bucket algorithm, with support for synchronous and asynchronous operations."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {file = "LICENSE"}
 authors = [{name = "Limin Ma"}]
 
@@ -35,10 +35,50 @@ classifiers = [
     "Framework :: AsyncIO",
 ]
 
-# dependencies = [
-#
-# ]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.14.4",
+]
 
 [project.urls]
-Homepage = "https://github.com/liminma/rate-limiter"  # TODO: Update this URL
-Repository = "https://github.com/liminma/rate-limiter" # TODO: Update this URL
+Homepage = "https://github.com/liminma/rate-limiter"
+Repository = "https://github.com/liminma/rate-limiter"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+# Recommended rule sets
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort (import sorting)
+    "N",     # pep8-naming
+    "UP",    # pyupgrade (modern Python syntax)
+    "B",     # flake8-bugbear (common bugs)
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "F401",  # imported but unused
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+# Default to skipping slow tests
+addopts = "-v --strict-markers"
