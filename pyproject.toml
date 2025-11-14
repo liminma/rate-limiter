@@ -81,4 +81,4 @@ markers = [
 ]
 
 # Default to skipping slow tests
-addopts = "-v --strict-markers"
+addopts = "--strict-markers"
