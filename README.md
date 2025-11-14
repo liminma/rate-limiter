@@ -1,12 +1,12 @@
 # rate-limiter
 
-A Python library for rate limiting using the token bucket algorithm, with support for both simple requests-per-second limiting and advanced model-specific rate limiting for LLM APIs.
+A Python library for rate limiting, with support for both simple requests-per-second limiting and advanced model-specific rate limiting for LLM APIs.
 
 ## Features
 
 - 🚀 **Two rate limiting strategies**:
   - **RPS Limiters**: Simple requests-per-second limiting with token bucket algorithm
-  - **Model Rate Limiters**: Advanced rate limiting for LLM APIs (RPM, TPM, parallel requests)
+  - **Model Rate Limiters**: Advanced rate limiting for LLM APIs (RPM, TPM, parallel requests) using sliding time windows
 - ⚡ **Async & Sync Support**: Works with both synchronous and asynchronous code
 - 🎯 **Easy to Use**: Decorators and context managers for seamless integration
 - 🔒 **Thread-Safe**: Built-in synchronization for concurrent operations
@@ -23,7 +23,7 @@ pip install git+https://github.com/liminma/rate-limiter.git
 Or using [uv](https://github.com/astral-sh/uv):
 
 ```bash
-uv add git+https://github.com/owner/repo.git
+uv add git+https://github.com/liminma/rate-limiter.git
 ```
 
 ## Quick Start
@@ -59,9 +59,9 @@ from rate_limiter import ModelRateLimiter, RateLimitContext
 limiter = ModelRateLimiter(
     model_configs={
         "gpt-4": {"rpm": 500, "tpm": 40000, "max_parallel_requests": 10},
-        "claude-3": {"rpm": 1000, "tpm": 80000, "max_parallel_requests": 5},
+        "gemini-2.5-pro": {"rpm": 1000, "tpm": 80000, "max_parallel_requests": 5},
     },
-    default_config={"rpm": 10, "tpm": 200000, "max_parallel_requests": 5}
+    default_config={"rpm": 10, "tpm": 20000, "max_parallel_requests": 5}
 )
 
 # Use with context manager (recommended)
@@ -169,7 +169,7 @@ limiter = ModelRateLimiter(
             "tpm": 40000,            # 40K tokens per minute
             "max_parallel_requests": 10  # Max 10 concurrent requests
         },
-        "gpt-3.5-turbo": {
+        "gemini-2.5-pro": {
             "rpm": 3500,
             "tpm": 90000,
             "max_parallel_requests": 20
@@ -177,7 +177,7 @@ limiter = ModelRateLimiter(
     },
     default_config={
         "rpm": 10,
-        "tpm": 200000,
+        "tpm": 20000,
         "max_parallel_requests": 5
     }
 )
@@ -247,7 +247,7 @@ print(stats)
 #         'tokens': '35000/40000',   # 35K tokens out of 40K TPM limit
 #         'active': '3/10'           # 3 active requests out of 10 max
 #     },
-#     'gpt-3.5-turbo': {
+#     'gemini-2.5-pro': {
 #         'requests': '120/3500',
 #         'tokens': '15000/90000',
 #         'active': '5/20'
@@ -341,7 +341,7 @@ class LLMOrchestrator:
 orchestrator = LLMOrchestrator()
 requests = [
     {"model": "gpt-4", "prompt": "Explain quantum computing"},
-    {"model": "gpt-3.5-turbo", "prompt": "Write a haiku about Python"},
+    {"model": "gemini-2.5-pro", "prompt": "Write a haiku about Python"},
     {"model": "claude-3", "prompt": "Summarize this article..."},
 ]
 results = await orchestrator.batch_generate(requests)
