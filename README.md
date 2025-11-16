@@ -369,6 +369,91 @@ for i in range(15):
 # - Remaining 5 requests are rate limited to 10 req/s
 ```
 
+### Example 4: Integrating with `google-adk`
+
+First, create a `Gemini` model that's rate limited.
+
+```python
+from google.adk.models.google_llm import Gemini
+from rate_limiter import ModelRateLimiter, RateLimitContext
+
+
+class RateLimitedGemini(Gemini):
+    """Gemini model that is aware of rate limits."""
+
+    def __init__(
+        self,
+        *args,
+        rate_limiter: ModelRateLimiter,
+        **kwargs,
+    ):
+        """
+        Initialize rate-limited Gemini model.
+
+        Args:
+            rate_limiter: ModelRateLimiter instance.
+            *args: Positional arguments for the parent Gemini class.
+            **kwargs: Keyword arguments for the parent Gemini class.
+        """
+        super().__init__(*args, **kwargs)
+        # Store as a private attribute to avoid Pydantic validation issues.
+        self._rate_limiter = rate_limiter
+
+    @property
+    def rate_limiter(self) -> ModelRateLimiter:
+        """Access the rate limiter instance."""
+        return self._rate_limiter
+
+    async def generate_content_async(self, *args, **kwargs):
+        """
+        Generate content with rate limiting.
+
+        This method wraps the parent's async generator with rate limiting.
+        """
+        async with RateLimitContext(self.rate_limiter, self.model):
+            # Call parent method which returns an async generator
+            async for response in super().generate_content_async(*args, **kwargs):
+                yield response
+```
+
+Then, initialize an `google.adk.agents.Agent` with a `RateLimitedGemini` model:
+
+```python
+from google.adk.agents import Agent
+from google.adk.tools import google_search
+from google.genai import types
+
+
+# configure model limits
+GEMINI_RATE_CONFIGS = {
+    "gemini-2.5-pro": {"rpm": 2, "tpm": 125000, "max_parallel_requests": 2},
+    "gemini-2.5-flash": {"rpm": 10, "tpm": 250000, "max_parallel_requests": 5},
+    "gemini-2.5-flash-lite": {"rpm": 15, "tpm": 250000, "max_parallel_requests": 10},
+}
+limiter = ModelRateLimiter(GEMINI_RATE_CONFIGS)
+
+# configure retry options
+retry_config=types.HttpRetryOptions(
+    attempts=5,  # Maximum retry attempts
+    exp_base=7,  # Delay multiplier
+    initial_delay=1,
+    http_status_codes=[429, 500, 503, 504], # Retry on these HTTP errors
+)
+
+# initialize an agent
+agent = Agent(
+    name="helpful_assistant",
+    model=RateLimitedGemini(
+        rate_limiter=limiter,
+        model="gemini-2.5-flash-lite",
+        retry_options=retry_config
+    ),
+    description="A simple agent",
+    instruction="You are a helpful assistant. You have the Google Search tool available to you to search for the latest information.",
+    tools=[google_search]
+)
+```
+
 ## API Reference
 
 ### RPS Limiters
