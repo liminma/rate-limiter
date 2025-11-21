@@ -371,7 +371,105 @@ for i in range(15):
 
 ### Example 4: Integrating with `google-adk`
 
-First, create a `Gemini` model that's rate limited.
+#### By creating a plugin
+
+```python
+import logging
+
+from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.plugins.base_plugin import BasePlugin
+
+from rate_limiter import ModelRateLimiter
+
+
+plugin_logger = logging.getLogger("rate_limiter.rate_limiter_plugin")
+
+class RateLimiterPlugin(BasePlugin):
+    """A custom plugin that applies rate limiting to calling LLM APIs."""
+
+    def __init__(
+        self,
+        model_configs: dict[str, dict] | None = None,
+        default_config: dict | None = None,
+    ) -> None:
+        super().__init__(name="rate_limiter")
+        self.rate_limiter: ModelRateLimiter = ModelRateLimiter(
+            model_configs=model_configs, default_config=default_config
+        )
+
+    async def before_model_callback(
+        self, *, callback_context: CallbackContext, llm_request: LlmRequest
+    ) -> None:
+        model_name = self._get_model_name(callback_context)
+        if model_name:
+            # Acquire a slot
+            plugin_logger.debug(f"[Plugin] Acquire request slot for model '{model_name}' in agent '{callback_context._invocation_context.agent.name}'")
+            await self.rate_limiter.acquire(model_name)
+
+    async def after_model_callback(
+        self, *, callback_context: CallbackContext, llm_response: LlmResponse
+    ) -> LlmResponse | None:
+        model_name = self._get_model_name(callback_context)
+        if model_name:
+            # Release the slot
+            plugin_logger.debug(f"[Plugin] Release request slot for model '{model_name}' in agent '{callback_context._invocation_context.agent.name}'")
+            await self.rate_limiter.release(model_name)
+
+    def _get_model_name(self, callback_context: CallbackContext) -> str | None:
+        agent = callback_context._invocation_context.agent
+        if isinstance(agent, LlmAgent):
+            return self._llmagent_model_name(agent)
+        else:
+            return None
+
+    def _llmagent_model_name(self, agent: LlmAgent) -> str | None:
+        if isinstance(agent.model, BaseLlm):
+            return agent.model.model.strip()
+
+        model_name = agent.model.strip()
+        if model_name:
+            return agent.model.strip()
+        else:
+            ancestor_agent = agent.parent_agent
+            while ancestor_agent is not None:
+                if isinstance(ancestor_agent, LlmAgent):
+                    return self._llmagent_model_name(ancestor_agent)
+                ancestor_agent = ancestor_agent.parent_agent
+            return None
+```
+
+then, use the plugin in a runner:
+
+```python
+import logging
+from google.adk.runners import Runner
+
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("rate_limiter").setLevel(logging.DEBUG)
+
+GEMINI_RATE_CONFIGS = {
+    "gemini-2.5-flash-lite": {"rpm": 15, "tpm": 250000, "max_parallel_requests": 5},
+    "gemini-2.5-flash": {"rpm": 10, "tpm": 250000, "max_parallel_requests": 3},
+    "gemini-2.5-pro": {"rpm": 2, "tpm": 150000, "max_parallel_requests": 1},
+}
+rate_limiter_plugin = RateLimiterPlugin(GEMINI_RATE_CONFIGS)
+
+runner = Runner(
+        agent=customer_support_agent,
+        app_name=app_name,
+        session_service=session_service,
+        plugins=[rate_limiter_plugin]
+    )
+```
+
+#### Or, by creating a custom model
+
+First, create a subclass of `Gemini` model that's rate limited.
 
 ```python
 from google.adk.models.google_llm import Gemini
@@ -416,7 +514,7 @@ class RateLimitedGemini(Gemini):
                 yield response
 ```
 
-Then, initialize an `google.adk.agents.Agent` with a `RateLimitedGemini` model:
+then, initialize an `google.adk.agents.Agent` with a `RateLimitedGemini` model:
 
 ```python
 from google.adk.agents import Agent
